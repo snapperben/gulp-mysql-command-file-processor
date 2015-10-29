@@ -15,7 +15,7 @@ GMCFP takes the following arguments...
 - password - database user password
 - host - The database host server (defaults to localhost)
 - port - The port the host server is listening on (defaults to 3306)
-- log level - DEFAULT Low. Can be:: 'NONE' - no logging; 'MED'|'M' - Medium logging (no command echo); 'FULL@|'F' - Full logging (commands echoed)
+- log level - DEFAULT Low. Can be:: 'NONE' - no logging; 'MED'|'M' - Medium logging (no command echo); 'FULL'|'F' - Full logging (commands echoed)
 
 ```js
 var gulp = require('gulp');
