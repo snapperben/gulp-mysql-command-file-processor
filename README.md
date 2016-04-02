@@ -1,5 +1,5 @@
 # gulp-mysql-command-file-processor
-This a gulp npm module that allows SQL Data Definition Language (DDL) files to be run into a MySql server as part of a controlled release process.
+This is a gulp npm module that allows SQL Data Definition Language (DDL) files to be run into a MySql server as part of a controlled release process.
 ## Prerequisites
 This expects you to have a mysql database and to use multiple script files containing standard mysql syntax SQL and DDL which create and populates your database schema.
 
@@ -16,6 +16,7 @@ GMCFP takes the following arguments...
 - host - The database host server (defaults to localhost)
 - port - The port the host server is listening on (defaults to 3306)
 - log level - DEFAULT Low. Can be:: 'NONE' - no logging; 'MED'|'M' - Medium logging (no command echo); 'FULL'|'F' - Full logging (commands echoed)
+- database - The database on the host server to use by default
 
 ```js
 var gulp = require('gulp');
@@ -23,19 +24,19 @@ var gmcfp = require('gulp-mysql-command-file-processor');
 
 gulp.task('schema',function(cb){
 	gulp.src('schema.sql')
-		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>))
+		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>,<database>))
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
 gulp.task('common_sql',function(cb) {
 	gulp.src(['common1.sql', 'common2.sql'])
-		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>))
+		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>,<database>))
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
 gulp.task('dev_sql', ['common_sql'], function(cb) {
 	gulp.src(['dev1.sql', 'dev2.sql'])
-		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>))
+		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>,<database>))
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
