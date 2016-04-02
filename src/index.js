@@ -121,7 +121,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
         var inString = false;
         var isEscaped = false;
         var isCommentBlock = 0; // 0 = false, 1 = begin, 2 = in block, 3 = end
-        data = buffer.toString('utf8', 0, buffer.length);
+        var data = buffer.toString('utf8', 0, buffer.length);
         while (dataOffset < buffer.length) {
             char = data.charAt(dataOffset++);
             if (char === ';' && !(inString || isEscaped || isCommentBlock !== 0)) {
