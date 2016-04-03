@@ -58,7 +58,6 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
                 _dbConnection.query({sql: _commandBuffer[commandCount], timeout: 60000}, function(err) {
                     if (err) {
                         console.log('Command#' + (commandCount + 1) + ' in file \'' + _fileName + '\' failed :: ' + err);
-                        process.exit(-1);
                     } else {
                         if (_verbosity > 1) {
                             console.log('Successfully executed query #' + (commandCount + 1));
