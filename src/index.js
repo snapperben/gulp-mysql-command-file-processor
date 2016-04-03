@@ -3,6 +3,7 @@
 var through = require('through2');
 var gutil = require('gulp-util');
 var mysql = require('mysql');
+
 const PLUGIN_NAME = 'gulp-mysql-command-file-processor';
 
 /**
@@ -42,7 +43,7 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
         if (!commandsDone) {
             if (processNextCommand) {
                 if (_verbosity > 1) {
-                    msg = 'Executing \'' + _fileName + '\' query#' + (commandCount + 1) + ' ........ ';
+                    msg = 'Executing \'' + _fileName + '\' query #' + (commandCount + 1) + ' ........ ';
                 }
 
                 if (_verbosity === 3) {
@@ -59,7 +60,7 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
                         console.log('Command#' + (commandCount + 1) + ' in file \'' + _fileName + '\' failed :: ' + err);
                         process.exit(-1);
                     } else {
-                        if (_verbosity === 'MED' || _verbosity === 'FULL') {
+                        if (_verbosity > 1) {
                             console.log('Successfully executed query #' + (commandCount + 1));
                         }
 
@@ -93,7 +94,7 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
  * @param _host - The database host server (defaults to localhost)
  * @param _port - The port the host server is listening on (defaults to 3306)
  * @param _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
- * @param _database - The database on the host server to use by default
+ * @param _database - The database on the host server
  * @return {*|{hello}|{first, second}}
  */
 function processCommandFile(_username, _password, _host, _port, _verbosity, _database) {
@@ -114,6 +115,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
             this.emit('error', new PluginError(PLUGIN_NAME, 'Buffers not supported!'));
             return cb();
         }
+
         var dataOffset = 0;
         var char;
         var commandBuffer = [];
@@ -122,35 +124,47 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
         var isEscaped = false;
         var isCommentBlock = 0; // 0 = false, 1 = begin, 2 = in block, 3 = end
         var data = buffer.toString('utf8', 0, buffer.length);
+
         while (dataOffset < buffer.length) {
             char = data.charAt(dataOffset++);
-            if (char === ';' && !(inString || isEscaped || isCommentBlock !== 0)) {
+            command += char;
+            if (char === ';' && !(inString || isEscaped || isCommentBlock)) {
                 commandBuffer.push(command);
                 command = '';
             } else {
                 if (char === '\\') {
                     isEscaped = true;
-                } else if (char === '/') {
+                } else if (char === '/' && !inString) {
                     if (isCommentBlock === 3) {
                         isCommentBlock = 0;
                     } else {
                         isCommentBlock = 1;
                     }
-                } else if (char === '*') {
+                } else if (char === '*' && !inString) {
                     if (isCommentBlock === 1) {
                         isCommentBlock = 2;
                     } else {
                         isCommentBlock = 3;
                     }
                 } else {
+                    if (isCommentBlock === 1 || isCommentBlock === 3) {
+                        isCommentBlock = 0;
+                    }
+
                     if (char === '\'' && !isEscaped) {
                         inString = !inString;
                     }
-                    if (isEscaped)
-                        isEscaped = false;
                 }
-                command += char;
             }
+
+            if (isEscaped) {
+                isEscaped = false;
+            }
+        }
+
+        // ignoring new line at end of the buffer, but sending the last request even if it is not closed with `;`
+        if (command.trim().length) {
+            commandBuffer.push(command);
         }
 
         var dbConnection = dbConnect(_username, _password, host, port, _database);
