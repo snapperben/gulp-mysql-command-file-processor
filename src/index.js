@@ -137,7 +137,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
                     isEscaped = true;
                 } else if (data.substr(dataOffset, 2) === '/*' && !inString && !isEscaped) {
                     isCommentBlock++;
-                } else if (data.substr(dataOffset, 2) === '*/' && !inString) {
+                } else if (data.substr(dataOffset, 2) === '*/' && !inString && !isEscaped) {
                     isCommentBlock--;
                 } else if (data.substr(dataOffset, 9).toLowerCase() === 'delimiter' && !inString && !isEscaped && !isCommentBlock) {
                     var nl = data.substr(dataOffset + 10).match('\r|\n').index;
