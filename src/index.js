@@ -142,11 +142,13 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
                     var nl = data.substr(dataOffset + 10).match('\r|\n').index;
                     delimiter = data.substr(dataOffset + 10, nl);
                     dataOffset += 10 + nl;
-                } else {
-                    if (char === '\'' && !isEscaped) {
-                        inString = !inString;
-                    }
+                } else if (!inString && !isEscaped && !isCommentBlock && (data.substr(dataOffset, 2) === '# ' || data.substr(dataOffset, 3) === '-- ')) {
+                    var nl = data.substr(dataOffset).match('\r|\n').index;
+                    dataOffset += nl; // skipping to the end of the line
+                } else if (char === '\'' && !isEscaped) {
+                    inString = !inString;
                 }
+
                 command += char;
             }
 
