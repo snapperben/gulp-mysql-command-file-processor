@@ -3,15 +3,16 @@
 var through = require('through2');
 var gutil = require('gulp-util');
 var mysql = require('mysql');
+
 const PLUGIN_NAME = 'gulp-mysql-command-file-processor';
 
 /**
  *
- * @param _user
- * @param _passw
- * @param _host
- * @param _port
- * @param _database
+ * @param {string} _user - Database username
+ * @param {string} _passw - database user password
+ * @param {string} _host - The database host server (defaults to localhost)
+ * @param {string} _port - The port the host server is listening on (defaults to 3306)
+ * @param {string} _database - The database on the host server
  * @returns {nm$_mysql.dbConnect.client|dbConnect.client}
  */
 function dbConnect(_user, _passw, _host, _port, _database) {
@@ -28,10 +29,10 @@ function dbConnect(_user, _passw, _host, _port, _database) {
 
 /**
  *
- * @param _fileName - Name of the file being streamed
- * @param _commandBuffer - Array of the processed commands
- * @param _dbConnection - A live connection to the database
- * @param _verbosity - The log level required -- 0(NONE) - 3(Full)
+ * @param {string} _fileName - Name of the file being streamed
+ * @param {array} _commandBuffer - Array of the processed commands
+ * @param {nm$_mysql.dbConnect.client|dbConnect.client} _dbConnection - A live connection to the database
+ * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
  */
 function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
     var commandsDone = false;
@@ -42,7 +43,7 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
         if (!commandsDone) {
             if (processNextCommand) {
                 if (_verbosity > 1) {
-                    msg = 'Executing \'' + _fileName + '\' query#' + (commandCount + 1) + ' ........ ';
+                    msg = 'Executing \'' + _fileName + '\' query #' + (commandCount + 1) + ' ........ ';
                 }
 
                 if (_verbosity === 3) {
@@ -54,19 +55,18 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
                 }
 
                 processNextCommand = false;
-                _dbConnection.query(_commandBuffer[commandCount] + ';', function(err, res) {
+                _dbConnection.query({sql: _commandBuffer[commandCount], timeout: 60000}, function(err) {
                     if (err) {
                         console.log('Command#' + (commandCount + 1) + ' in file \'' + _fileName + '\' failed :: ' + err);
-                        process.exit(-1);
                     } else {
-                        if (_verbosity === 'MED' || _verbosity === 'FULL') {
+                        if (_verbosity > 1) {
                             console.log('Successfully executed query #' + (commandCount + 1));
                         }
 
                         commandCount++;
                         if (commandCount === _commandBuffer.length) {
                             commandsDone = true;
-                            _dbConnection.end(function(err) {});
+                            _dbConnection.end(function() {});
                             if (_verbosity > 0) {
                                 console.log('Executed ' + commandCount + ' commands from file \'' + _fileName + '\'');
                             }
@@ -88,12 +88,12 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
 
 /**
  *
- * @param _username - Database username
- * @param _password - database user password
- * @param _host - The database host server (defaults to localhost)
- * @param _port - The port the host server is listening on (defaults to 3306)
- * @param _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
- * @param _database - The database on the host server to use by default
+ * @param {string} _username - Database username
+ * @param {string} _password - database user password
+ * @param {string} _host - The database host server (defaults to localhost)
+ * @param {string} _port - The port the host server is listening on (defaults to 3306)
+ * @param {string} _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
+ * @param {string} _database - The database on the host server
  * @return {*|{hello}|{first, second}}
  */
 function processCommandFile(_username, _password, _host, _port, _verbosity, _database) {
@@ -114,43 +114,52 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
             this.emit('error', new PluginError(PLUGIN_NAME, 'Buffers not supported!'));
             return cb();
         }
-        var dataOffset = 0;
+
+        var dataOffset = -1;
         var char;
         var commandBuffer = [];
         var command = '';
         var inString = false;
         var isEscaped = false;
         var isCommentBlock = 0; // 0 = false, 1 = begin, 2 = in block, 3 = end
+        var delimiter = ';';
         var data = buffer.toString('utf8', 0, buffer.length);
+
         while (dataOffset < buffer.length) {
             char = data.charAt(dataOffset++);
-            if (char === ';' && !(inString || isEscaped || isCommentBlock !== 0)) {
+
+            if (char === delimiter && !inString && !isEscaped && !isCommentBlock) {
                 commandBuffer.push(command);
                 command = '';
             } else {
                 if (char === '\\') {
                     isEscaped = true;
-                } else if (char === '/') {
-                    if (isCommentBlock === 3) {
-                        isCommentBlock = 0;
-                    } else {
-                        isCommentBlock = 1;
-                    }
-                } else if (char === '*') {
-                    if (isCommentBlock === 1) {
-                        isCommentBlock = 2;
-                    } else {
-                        isCommentBlock = 3;
-                    }
-                } else {
-                    if (char === '\'' && !isEscaped) {
-                        inString = !inString;
-                    }
-                    if (isEscaped)
-                        isEscaped = false;
+                } else if (data.substr(dataOffset, 2) === '/*' && !inString && !isEscaped) {
+                    isCommentBlock++;
+                } else if (data.substr(dataOffset, 2) === '*/' && !inString && !isEscaped) {
+                    isCommentBlock--;
+                } else if (data.substr(dataOffset, 9).toLowerCase() === 'delimiter' && !inString && !isEscaped && !isCommentBlock) {
+                    var nl = data.substr(dataOffset + 10).match('\r|\n').index;
+                    delimiter = data.substr(dataOffset + 10, nl);
+                    dataOffset += 10 + nl;
+                } else if (!inString && !isEscaped && !isCommentBlock && (data.substr(dataOffset, 2) === '# ' || data.substr(dataOffset, 3) === '-- ')) {
+                    var nl = data.substr(dataOffset).match('\r|\n').index;
+                    dataOffset += nl; // skipping to the end of the line
+                } else if (char === '\'' && !isEscaped) {
+                    inString = !inString;
                 }
+
                 command += char;
             }
+
+            if (isEscaped) {
+                isEscaped = false;
+            }
+        }
+
+        // ignoring new line at end of the buffer, but sending the last request even if it is not closed with `;`
+        if (command.trim().length) {
+            commandBuffer.push(command);
         }
 
         var dbConnection = dbConnect(_username, _password, host, port, _database);
