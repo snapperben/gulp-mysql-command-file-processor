@@ -58,9 +58,9 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
                 _dbConnection.query({sql: _commandBuffer[commandCount], timeout: 60000}, function(err) {
                     if (err) {
                         console.log('Command#' + (commandCount + 1) + ' in file \'' + _fileName + '\' failed :: ' + err);
-						if (!_force) {
-							process.exit(-1);
-						}
+                        if (!_force) {
+                            process.exit(-1);
+                        }
                     } else {
                         if (_verbosity > 1) {
                             console.log('Successfully executed query #' + (commandCount + 1));
@@ -104,7 +104,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
     var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
-	var force = _force === false ? false : true;
+    var force = _force === false ? false : true;
     if (!(_username && _password)) {
         throw new gutil.PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
     }
