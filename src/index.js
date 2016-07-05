@@ -34,7 +34,7 @@ function dbConnect(_user, _passw, _host, _port, _database) {
  * @param {nm$_mysql.dbConnect.client|dbConnect.client} _dbConnection - A live connection to the database
  * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
  */
-function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
+function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force) {
     var commandsDone = false;
     var commandCount = 0;
     var processNextCommand = true;
@@ -58,6 +58,9 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
                 _dbConnection.query({sql: _commandBuffer[commandCount], timeout: 60000}, function(err) {
                     if (err) {
                         console.log('Command#' + (commandCount + 1) + ' in file \'' + _fileName + '\' failed :: ' + err);
+                        if (!_force) {
+                            process.exit(-1);
+                        }
                     } else {
                         if (_verbosity > 1) {
                             console.log('Successfully executed query #' + (commandCount + 1));
@@ -96,11 +99,12 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity) {
  * @param {string} _database - The database on the host server
  * @return {*|{hello}|{first, second}}
  */
-function processCommandFile(_username, _password, _host, _port, _verbosity, _database) {
+function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force) {
     var buffer;
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
     var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
+    var force = _force === false ? false : true;
     if (!(_username && _password)) {
         throw new gutil.PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
     }
@@ -167,7 +171,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
         if (verbosity > 0) {
             console.log('Starting to process \'' + name + '\'');
         }
-        processCommands(name, commandBuffer, dbConnection, verbosity);
+        processCommands(name, commandBuffer, dbConnection, verbosity, force);
         cb(null, file);
     });
 }
