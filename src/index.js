@@ -161,7 +161,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
             console.log('Starting to process \'' + name + '\'');
         }
         processCommands(name, commandBuffer, dbConnection, verbosity, force, function(){
-            _dbConnection.end(function() {
+            dbConnection.end(function() {
                 console.log('Executed ' + commandBuffer.length + ' commands from file \'' + name + '\'');
                 cb(null, file);
             }); 
