@@ -3,6 +3,7 @@
 var through = require('through2');
 var gutil = require('gulp-util');
 var mysql = require('mysql');
+var async = require('async');
 
 const PLUGIN_NAME = 'gulp-mysql-command-file-processor';
 
@@ -34,59 +35,47 @@ function dbConnect(_user, _passw, _host, _port, _database) {
  * @param {nm$_mysql.dbConnect.client|dbConnect.client} _dbConnection - A live connection to the database
  * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
  */
-function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force) {
+function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, cb) {
     var commandsDone = false;
     var commandCount = 0;
     var processNextCommand = true;
-    var runCmd = function() {
-        var msg = '';
-        if (!commandsDone) {
-            if (processNextCommand) {
-                if (_verbosity > 1) {
-                    msg = 'Executing \'' + _fileName + '\' query #' + (commandCount + 1) + ' ........ ';
-                }
+    var runCmds = [];
+    var msg = '';
 
-                if (_verbosity === 3) {
-                    msg += _commandBuffer[commandCount];
-                }
-
-                if (msg) {
-                    console.log(msg);
-                }
-
-                processNextCommand = false;
-                _dbConnection.query({sql: _commandBuffer[commandCount], timeout: 60000}, function(err) {
-                    if (err) {
-                        console.log('Command#' + (commandCount + 1) + ' in file \'' + _fileName + '\' failed :: ' + err);
-                        if (!_force) {
-                            process.exit(-1);
-                        }
-                    } else {
-                        if (_verbosity > 1) {
-                            console.log('Successfully executed query #' + (commandCount + 1));
-                        }
-
-                        commandCount++;
-                        if (commandCount === _commandBuffer.length) {
-                            commandsDone = true;
-                            _dbConnection.end(function() {});
-                            if (_verbosity > 0) {
-                                console.log('Executed ' + commandCount + ' commands from file \'' + _fileName + '\'');
-                            }
-                        } else {
-                            processNextCommand = true;
-                        }
-                    }
-                });
+    _commandBuffer.map(function (cmd) {
+        runCmds.push(function(done) {
+            if (_verbosity > 1) {
+                msg = 'Executing \'' + _fileName + '\' query #' + (commandCount + 1) + ' ........ ';
             }
 
-            setTimeout(runCmd, 40);
-        }
-    };
+            if (_verbosity === 3) {
+                msg += cmd;
+            }
 
-    if (_commandBuffer.length > 0) {
-        runCmd();
-    }
+            if (msg) {
+                console.log(msg);
+            }
+
+            _dbConnection.query({sql: cmd, timeout: 60000}, function(err) {
+                if (err) {
+                    console.log('Command#' + (commandCount + 1) + ' in file \'' + _fileName + '\' failed :: ' + err);
+                    if (!_force) {
+                        process.exit(-1);
+                    }
+                } else {
+                    if (_verbosity > 1) {
+                        console.log('Successfully executed query #' + (commandCount + 1));
+                    }
+
+                    commandCount++;
+                }
+
+                done();
+            });
+        });
+    });
+
+    async.series(runCmds, cb);    
 }
 
 /**
@@ -171,8 +160,12 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
         if (verbosity > 0) {
             console.log('Starting to process \'' + name + '\'');
         }
-        processCommands(name, commandBuffer, dbConnection, verbosity, force);
-        cb(null, file);
+        processCommands(name, commandBuffer, dbConnection, verbosity, force, function(){
+            _dbConnection.end(function() {
+                console.log('Executed ' + commandBuffer.length + ' commands from file \'' + name + '\'');
+                cb(null, file);
+            }); 
+        });
     });
 }
 
