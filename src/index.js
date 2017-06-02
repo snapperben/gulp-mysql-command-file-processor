@@ -13,16 +13,23 @@ const PLUGIN_NAME = 'gulp-mysql-command-file-processor';
  * @param {string} _host - The database host server (defaults to localhost)
  * @param {string} _port - The port the host server is listening on (defaults to 3306)
  * @param {string} _database - The database on the host server
+ * @param {string} _ssl - flag to use secure connection or not
  * @returns {nm$_mysql.dbConnect.client|dbConnect.client}
  */
-function dbConnect(_user, _passw, _host, _port, _database) {
-    var client = mysql.createConnection({
+function dbConnect(_user, _passw, _host, _port, _database, _ssl) {
+    var connection = {
         host: _host,
         user: _user,
         password: _passw,
         port: _port,
         database: _database
-    });
+    };
+
+    if (_ssl && _ssl === "true") {
+        connection.ssl = true;
+    }
+
+    var client = mysql.createConnection(connection);
     client.connect();
     return client;
 }
@@ -97,9 +104,11 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
  * @param {string} _port - The port the host server is listening on (defaults to 3306)
  * @param {string} _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
  * @param {string} _database - The database on the host server
+ * @param {string} _force
+ * @param {string} _ssl - flag to use secure connection or not
  * @return {*|{hello}|{first, second}}
  */
-function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force) {
+function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _ssl) {
     var buffer;
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
@@ -166,7 +175,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
             commandBuffer.push(command);
         }
 
-        var dbConnection = dbConnect(_username, _password, host, port, _database);
+        var dbConnection = dbConnect(_username, _password, host, port, _database, _ssl);
         var name = file.path;
         if (verbosity > 0) {
             console.log('Starting to process \'' + name + '\'');
