@@ -18,6 +18,7 @@ GMCFP takes the following arguments...
 - log level - DEFAULT Low. Can be:: 'NONE' - no logging; 'MED'|'M' - Medium logging (no command echo); 'FULL'|'F' - Full logging (commands echoed)
 - database - The database on the host server to use by default
 - force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
+- serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
 
 ```js
 var gulp = require('gulp');
