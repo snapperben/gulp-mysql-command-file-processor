@@ -34,8 +34,10 @@ function dbConnect(_user, _passw, _host, _port, _database) {
  * @param {array} _commandBuffer - Array of the processed commands
  * @param {nm$_mysql.dbConnect.client|dbConnect.client} _dbConnection - A live connection to the database
  * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
+ * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
+ * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
  */
-function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, cb) {
+function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, cb) {
     var commandsDone = false;
     var commandCount = 0;
     var processNextCommand = true;
@@ -75,7 +77,11 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
         });
     });
 
-    async.series(runCmds, cb);    
+    if (_serial) {
+        async.series(runCmds, cb);    
+    } else {
+        async.parallel(runCmds, cb);    
+    }
 }
 
 /**
@@ -86,14 +92,18 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
  * @param {string} _port - The port the host server is listening on (defaults to 3306)
  * @param {string} _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
  * @param {string} _database - The database on the host server
+ * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
+ * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
  * @return {*|{hello}|{first, second}}
  */
-function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force) {
+function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial) {
     var buffer;
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
     var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
     var force = _force === false ? false : true;
+    var serial = _serial === true ? true : false;
+
     if (!(_username && _password)) {
         throw new gutil.PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
     }
@@ -160,7 +170,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
         if (verbosity > 0) {
             console.log('Starting to process \'' + name + '\'');
         }
-        processCommands(name, commandBuffer, dbConnection, verbosity, force, function(){
+        processCommands(name, commandBuffer, dbConnection, verbosity, force, serial, function(){
             dbConnection.end(function() {
                 console.log('Executed ' + commandBuffer.length + ' commands from file \'' + name + '\'');
                 cb(null, file);
