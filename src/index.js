@@ -1,7 +1,6 @@
 'use strict';
 
 var through = require('through2');
-var gutil = require('gulp-util');
 var mysql = require('mysql');
 var async = require('async');
 
@@ -101,11 +100,11 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
     var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
-    var force = _force === false ? false : true;
-    var serial = _serial === true ? true : false;
+    var force = _force !== false;
+    var serial = _serial === true;
 
     if (!(_username && _password)) {
-        throw new gutil.PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
+        throw new PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
     }
 
     return through.obj(function(file, enc, cb) {
