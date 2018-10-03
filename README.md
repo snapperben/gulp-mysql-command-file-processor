@@ -87,7 +87,9 @@ CREATE PROCEDURE `<PROC NAME>`....
 END <NEW DELIMITER>
 DELIMITER ;
 ```
-- The DROP statement at the start is to allow repeated application of the procedure scripts without
+- The new delimiter by convention is normally '//' but could be another textural phrase that
+ cannot be used in the body of the procedure other than to execute a preceding statement.
+- The delimiter statement must be terminated by a new line and will be executed as its own
+ statement, ignoring anything else in the file since the last previous statement termination.
+ - The DROP statement at the start is to allow repeated application of the procedure scripts without
 causing error messages.
-- The new delimiter is by convention '//' but could be another textural phrase that
- cannot be used in the body of the pfrocedure other than to execute a preceding statement.
