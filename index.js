@@ -36,16 +36,35 @@ function dbConnect(_user, _passw, _host, _port, _database) {
  * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
  * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
  * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
+ * @param {string} _dbName - If set then use this namne to set the database on the connection before issuing any commands
  */
-function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, cb) {
+function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, _dbName, cb) {
     var commandsDone = false;
     var commandCount = 0;
     var processNextCommand = true;
     var runCmds = [];
     var msg = '';
+	var setDB = _dbName !== undefined && _dbName !== '';
 
+	if (setDB){
+		if (_verbosity > 1) {
+			console.log('Setting database to `'+_dbName+'`......');
+		}
+		_dbConnection.query({sql: 'USE `'+_dbName+'`;', timeout: 60000}, function(err) {
+			if (err) {
+				console.log('USE DB Command failed :: ' + err);
+				if (!_force) {
+					process.exit(-1);
+				}
+			} else {
+				if (_verbosity > 1) {
+					console.log('Done');
+				}
+			}
+		});
+	}
     _commandBuffer.map(function (cmd) {
-        runCmds.push(function(done) {
+	    runCmds.push(function(done) {
             if (_verbosity > 1) {
                 msg = 'Executing \'' + _fileName + '\' query #' + (commandCount + 1) + ' ........ ';
             }
@@ -130,8 +149,6 @@ function CharParser(){
 				var delimiter = _data.substr(dataOffset + 10, nl);
 				dataOffset += 10 + nl;
 				this.setDelimiter(delimiter.trim());
-				//commandBuffer.push('DELIMITER '+delimiter);
-				//command += ('DELIMITER '+delimiter);
 			} else {
 				char = _data.charAt(dataOffset);
 
@@ -178,17 +195,20 @@ function CharParser(){
  * @param {string} _port - The port the host server is listening on (defaults to 3306)
  * @param {string} _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
  * @param {string} _database - The database on the host server
- * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
- * @param {string} _serial - 'S'|'SERIAL' ==> commands should be run serially/sequentially - anything else means tasks run in parallel
+ * @param {boolean
+ * } _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
+ * @param {boolean} _serial - If true then run tasks in serial. anything else, tasks run in parallel
+ * @param {boolean} _setDB - If set to true then use the database (argument 5) to set the database before running files in
  * @return {*|{hello}|{first, second}}
  */
-function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial) {
+function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial, _setDB) {
     var buffer;
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
     var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
-    var force = _force === false ? false : true;
-    var serial = (_serial.toUpperCase() === 'S' || _serial.toUpperCase() === "SERIAL") ? true : false;
+    var force = _force !== false;
+    var serial = _serial === true;
+    var setDB = _setDB === true;
 
     if (!(_username && _password)) {
         throw new gutil.PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
@@ -213,7 +233,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
         if (verbosity > 0) {
             console.log('Starting to process \'' + name + '\'');
         }
-        processCommands(name, commandBuffer, dbConnection, verbosity, force, serial, function(){
+        processCommands(name, commandBuffer, dbConnection, verbosity, force, serial, (setDB?_database:undefined), function() {
             dbConnection.end(function() {
                 console.log('Executed ' + commandBuffer.length + ' commands from file \'' + name + '\'');
                 cb(null, file);
