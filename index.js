@@ -35,14 +35,33 @@ function dbConnect(_user, _passw, _host, _port, _database) {
  * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
  * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
  * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
+ * @param {string} _dbName - the database name to use if supplied
  */
-function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, cb) {
+function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, _dbName, cb) {
     var commandsDone = false;
     var commandCount = 0;
     var processNextCommand = true;
     var runCmds = [];
     var msg = '';
+    var setDB = _dbName !== undefined && _dbName !== '';
 
+    if (setDB){
+	    if (_verbosity > 1) {
+		    console.log('Setting database to `'+_dbName+'`......');
+	    }
+	    _dbConnection.query({sql: 'USE `'+_dbName+'`;', timeout: 60000}, function(err) {
+		    if (err) {
+			    console.log('USE DB Command failed :: ' + err);
+			    if (!_force) {
+				    process.exit(-1);
+			    }
+		    } else {
+			    if (_verbosity > 1) {
+				    console.log('Done');
+			    }
+		    }
+	    });
+    }
     _commandBuffer.map(function (cmd) {
         runCmds.push(function(done) {
             if (_verbosity > 1) {
@@ -93,15 +112,17 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
  * @param {string} _database - The database on the host server
  * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
  * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
+ * @param {bool} _setDB - If set to true, explicitly set the database before processing each SQL file
  * @return {*|{hello}|{first, second}}
  */
-function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial) {
+function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial, _setDB) {
     var buffer;
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
     var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
     var force = _force !== false;
     var serial = _serial === true;
+	var setDB = _setDB === true && typeof _database === 'string' && _database !== '';
 
     if (!(_username && _password)) {
         throw new PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
@@ -169,7 +190,7 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
         if (verbosity > 0) {
             console.log('Starting to process \'' + name + '\'');
         }
-        processCommands(name, commandBuffer, dbConnection, verbosity, force, serial, function(){
+        processCommands(name, commandBuffer, dbConnection, verbosity, force, serial, (setDB?_database:undefined), function(){
             dbConnection.end(function() {
                 console.log('Executed ' + commandBuffer.length + ' commands from file \'' + name + '\'');
                 cb(null, file);

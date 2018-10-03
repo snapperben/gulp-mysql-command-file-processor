@@ -18,7 +18,8 @@ GMCFP takes the following arguments...
 - log level - DEFAULT Low. Can be:: 'NONE' - no logging; 'MED'|'M' - Medium logging (no command echo); 'FULL'|'F' - Full logging (commands echoed)
 - database - The database on the host server to use by default
 - force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
-- serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
+- serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to FALSE (run in parallel))
+- setDB - Boolean - If true, use the database argument to set the db to use before applying sql files 
 
 ```js
 var gulp = require('gulp');
@@ -32,7 +33,7 @@ gulp.task('schema',function(cb){
 });
 gulp.task('common_sql',function(cb) {
 	gulp.src(['common1.sql', 'common2.sql'])
-		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>,<database>))
+		.pipe(gmcfp(<user, <paswd>,<host>,<port>,<log level>,<database>, false, false, true))
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
@@ -42,19 +43,25 @@ gulp.task('dev_sql', ['common_sql'], function(cb) {
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
-
 ```
+- Please note that in the second example, if the database name is provided (the 6th argument),
+it will be used to set the database on the connection before the sql file is processed
 
 ## Example sql files
-Below are examples of the sql files that I have used in my project. They are all completely legal MySql script files where each distinct command is terminated with a ';'.
+Below are examples of the sql files that I have used in my project. They are all completely legal
+ MySql script files where each distinct command is terminated with a ';' 
+ (See the stored procedure section for a slight variation on delimiting commands)
 ### Schema creation DDL
-This file creates the database schema. This file was created by forward engineering a database model in MySql Workbench (free from Oracle) into a script file.
+This file creates the database schema. 
+This file was created by forward engineering a database model in MySql Workbench (free from Oracle) into a script file.
+<br><br>Please note that the "USE `DB_NAME`;" command in your SQL file avoids table names having to be prefixed by "db_name.". If you do not have explicit "USE DB_NAME;"
+commands in your SQL files, a database name an d a flag indicating you want to use that database for SQL script files can be supplied. 
 ```sql
 DROP SCHEMA IF EXISTS `DB_NAME` ;
 CREATE SCHEMA IF NOT EXISTS `DB_NAME` DEFAULT CHARACTER SET latin1 ;
 USE `DB_NAME` ;
-DROP TABLE IF EXISTS `DB_NAME`.`user` ;
-CREATE TABLE IF NOT EXISTS `DB_NAME`.`user` (......
+DROP TABLE IF EXISTS `user` ;
+CREATE TABLE IF NOT EXISTS `user` (......
 ```
 
 ### Data population SQL
@@ -65,3 +72,22 @@ TRUNCATE `table1`;
 INSERT INTO `table1` (`id`, `name`, `desc`) VALUES
 (1, 'Stripe', 'Stripe payment gateway');
 ```
+### Stored Procedures
+Stored procedures scripts can be used by this module reliably if the SQL file follows these simple conventions
+ before and after the main body of the stored procedure as laid out below...
+```sql
+DROP PROCEDURE IF EXISTS `<PROC NAME>`;
+
+DELIMITER <NEW DELIMITER>
+
+CREATE PROCEDURE `<PROC NAME>`....
+
+.......
+
+END <NEW DELIMITER>
+DELIMITER ;
+```
+- The DROP statement at the start is to allow repeated application of the procedure scripts without
+causing error messages.
+- The new delimiter is by convention '//' but could be another textural phrase that
+ cannot be used in the body of the pfrocedure other than to execute a preceding statement.
