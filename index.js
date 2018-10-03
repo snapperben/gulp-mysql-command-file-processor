@@ -1,10 +1,11 @@
 'use strict';
 
 var through = require('through2');
+var gutil = require('gulp-util');
 var mysql = require('mysql');
 var async = require('async');
 
-const PLUGIN_NAME = 'gulp-mysql-command-file-processor';
+var PLUGIN_NAME = 'gulp-mysql-command-file-processor';
 
 /**
  *
@@ -35,33 +36,14 @@ function dbConnect(_user, _passw, _host, _port, _database) {
  * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
  * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
  * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
- * @param {string} _dbName - the database name to use if supplied
  */
-function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, _dbName, cb) {
+function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, cb) {
     var commandsDone = false;
     var commandCount = 0;
     var processNextCommand = true;
     var runCmds = [];
     var msg = '';
-    var setDB = _dbName !== undefined && _dbName !== '';
 
-    if (setDB){
-	    if (_verbosity > 1) {
-		    console.log('Setting database to `'+_dbName+'`......');
-	    }
-	    _dbConnection.query({sql: 'USE `'+_dbName+'`;', timeout: 60000}, function(err) {
-		    if (err) {
-			    console.log('USE DB Command failed :: ' + err);
-			    if (!_force) {
-				    process.exit(-1);
-			    }
-		    } else {
-			    if (_verbosity > 1) {
-				    console.log('Done');
-			    }
-		    }
-	    });
-    }
     _commandBuffer.map(function (cmd) {
         runCmds.push(function(done) {
             if (_verbosity > 1) {
@@ -102,6 +84,92 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
     }
 }
 
+function CharParser(){
+
+	this.skipDelimiter = function(_offset){
+		return _offset - this.delimLen;
+	}
+	this.testDelimiter = function(_buffer, _offset){
+		return _buffer.substr(_offset, this.delimLen) === this.delimStr;
+	}
+	this.setDelimiter = function(_newDelimStr){
+		if (typeof _newDelimStr === 'string'){
+			this.delimStr = _newDelimStr;
+			this.delimLen = this.delimStr.length;
+			this.defDelimiter = false;
+		} else {
+			this.delimStr = ';';
+			this.delimLen = 1;
+			this.defDelimiter = true;
+		}
+	}
+
+	this.processCharacters = function(_data) {
+		var char, inString = false, isEscaped = false, nextCharEscaped = false,
+			isCommentBlock = 0, // 0 = false, 1 = begin, 2 = in block, 3 = end
+			commandBuffer = [], command = '', dataOffset = -1, isDelim = false;
+
+		while (dataOffset < _data.length) {
+			dataOffset++;
+			isDelim = this.testDelimiter(_data, dataOffset);
+			if (isDelim && !inString && !isEscaped && !isCommentBlock) {
+				if (!this.defDelimiter){
+					dataOffset+=(this.delimLen-1)
+				}
+				command += ';';
+				commandBuffer.push(command);
+				command = '';
+			} else if (_data.substr(dataOffset, 9).toLowerCase() === 'delimiter' &&
+					   !inString && !isEscaped && !isCommentBlock) {
+				var nl = 1, delimStr = _data.substr(dataOffset + 10);
+				if (delimStr.length > 0){
+					if (_data.substr(dataOffset + 10).match('\r|\n')) {
+						nl = _data.substr(dataOffset + 10).match('\r|\n').index
+					}
+				}
+				var delimiter = _data.substr(dataOffset + 10, nl);
+				dataOffset += 10 + nl;
+				this.setDelimiter(delimiter.trim());
+				//commandBuffer.push('DELIMITER '+delimiter);
+				//command += ('DELIMITER '+delimiter);
+			} else {
+				char = _data.charAt(dataOffset);
+
+				if (!isEscaped) {
+					if (char === '\\' && !isCommentBlock && !isCommentBlock) {
+						nextCharEscaped = true
+					} else if (_data.substr(dataOffset, 2) === '/*' && !inString) {
+						isCommentBlock++;
+					} else if (_data.substr(dataOffset, 2) === '*/' && !inString) {
+						isCommentBlock--;
+					} else if (!inString && !isEscaped && !isCommentBlock &&
+						(_data.substr(dataOffset, 2) === '# ' ||
+						_data.substr(dataOffset, 3) === '-- ')) {
+						var nl = _data.substr(dataOffset).match('\r|\n').index;
+						char = '';//_data.substr(dataOffset, nl);
+						dataOffset += nl; // skipping to the end of the line
+					} else if (char === '\'' && !isCommentBlock) {
+						inString = !inString;
+					}
+				}
+				command += char;
+			}
+			if (nextCharEscaped){
+				isEscaped = true;
+				nextCharEscaped = false;
+			} else if (isEscaped) {
+				isEscaped = false;
+			}
+		}
+		// ignoring new line at end of the buffer, but sending the last request even if it is not closed with `;`
+        if (command.trim().length) {
+            commandBuffer.push(command);
+        }
+		return commandBuffer;
+	}
+	this.setDelimiter();
+}
+
 /**
  *
  * @param {string} _username - Database username
@@ -111,21 +179,19 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
  * @param {string} _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
  * @param {string} _database - The database on the host server
  * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
- * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
- * @param {bool} _setDB - If set to true, explicitly set the database before processing each SQL file
+ * @param {string} _serial - 'S'|'SERIAL' ==> commands should be run serially/sequentially - anything else means tasks run in parallel
  * @return {*|{hello}|{first, second}}
  */
-function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial, _setDB) {
+function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial) {
     var buffer;
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
     var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
-    var force = _force !== false;
-    var serial = _serial === true;
-	var setDB = _setDB === true && typeof _database === 'string' && _database !== '';
+    var force = _force === false ? false : true;
+    var serial = (_serial.toUpperCase() === 'S' || _serial.toUpperCase() === "SERIAL") ? true : false;
 
     if (!(_username && _password)) {
-        throw new PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
+        throw new gutil.PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
     }
 
     return through.obj(function(file, enc, cb) {
@@ -138,59 +204,16 @@ function processCommandFile(_username, _password, _host, _port, _verbosity, _dat
             return cb();
         }
 
-        var dataOffset = -1;
-        var char;
-        var commandBuffer = [];
-        var command = '';
-        var inString = false;
-        var isEscaped = false;
-        var isCommentBlock = 0; // 0 = false, 1 = begin, 2 = in block, 3 = end
-        var delimiter = ';';
-        var data = buffer.toString('utf8', 0, buffer.length);
-
-        while (dataOffset < buffer.length) {
-            char = data.charAt(dataOffset++);
-
-            if (char === delimiter && !inString && !isEscaped && !isCommentBlock) {
-                commandBuffer.push(command);
-                command = '';
-            } else {
-                if (char === '\\') {
-                    isEscaped = true;
-                } else if (data.substr(dataOffset, 2) === '/*' && !inString && !isEscaped) {
-                    isCommentBlock++;
-                } else if (data.substr(dataOffset, 2) === '*/' && !inString && !isEscaped) {
-                    isCommentBlock--;
-                } else if (data.substr(dataOffset, 9).toLowerCase() === 'delimiter' && !inString && !isEscaped && !isCommentBlock) {
-                    var nl = data.substr(dataOffset + 10).match('\r|\n').index;
-                    delimiter = data.substr(dataOffset + 10, nl);
-                    dataOffset += 10 + nl;
-                } else if (!inString && !isEscaped && !isCommentBlock && (data.substr(dataOffset, 2) === '# ' || data.substr(dataOffset, 3) === '-- ')) {
-                    var nl = data.substr(dataOffset).match('\r|\n').index;
-                    dataOffset += nl; // skipping to the end of the line
-                } else if (char === '\'' && !isEscaped) {
-                    inString = !inString;
-                }
-
-                command += char;
-            }
-
-            if (isEscaped) {
-                isEscaped = false;
-            }
-        }
-
-        // ignoring new line at end of the buffer, but sending the last request even if it is not closed with `;`
-        if (command.trim().length) {
-            commandBuffer.push(command);
-        }
+        var data = buffer.toString('utf8', 0, buffer.length),
+			charParser = new CharParser(),
+			commandBuffer = charParser.processCharacters(data);
 
         var dbConnection = dbConnect(_username, _password, host, port, _database);
         var name = file.path;
         if (verbosity > 0) {
             console.log('Starting to process \'' + name + '\'');
         }
-        processCommands(name, commandBuffer, dbConnection, verbosity, force, serial, (setDB?_database:undefined), function(){
+        processCommands(name, commandBuffer, dbConnection, verbosity, force, serial, function(){
             dbConnection.end(function() {
                 console.log('Executed ' + commandBuffer.length + ' commands from file \'' + name + '\'');
                 cb(null, file);
