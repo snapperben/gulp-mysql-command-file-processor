@@ -46,7 +46,7 @@ function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _
 	var setDB = _dbName !== undefined && _dbName !== '';
 
 	if (setDB){
-		if (_verbosity > 1) {
+		if (_verbosity > 0) {
 			console.log('Setting database to `'+_dbName+'`......');
 		}
 		_dbConnection.query({sql: 'USE `'+_dbName+'`;', timeout: 60000}, function(err) {
