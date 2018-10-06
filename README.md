@@ -10,16 +10,22 @@ In any non-trivial web development project using a MySql database you will have 
 Therefore a repeatable, definable and reliable procedure is needed to make sure that each release to an environment behaves as required.
 
 ## Usage of gulp-mysql-command-file-processor
-GMCFP takes the following arguments...
-- username - Database username
-- password - database user password
-- host - The database host server (defaults to localhost)
-- port - The port the host server is listening on (defaults to 3306)
-- log level - DEFAULT Low. Can be:: 'NONE' - no logging; 'MED'|'M' - Medium logging (no command echo); 'FULL'|'F' - Full logging (commands echoed)
-- database - The database on the host server to use by default
-- force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
-- serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to FALSE (run in parallel))
-- setDB - Boolean - If true, use the database argument to set the db to use before applying sql files 
+gulp-mysql-command-file-processor takes the following arguments...
+- username - String - Database username - required
+- password - String - Database user password - required
+- host - String - Database host server (defaults to localhost)
+- port - Number - The port the host server is listening on (defaults to 3306)
+- log level -  String - defaults to 'M' - Medium logging. Can be:-
+    * 'NONE' - no logging at all
+    * 'LOW'|'L' - Low logging
+    * 'MED'|'M' - Medium logging (no command echo)
+    * 'FULL'|'F' - Full logging (commands echoed)
+- database - String - Database to set before running commands. not needed if the database user has a
+default schema set.
+- force - Boolean - Should execution continue after query error (defaults to FALSE)
+- serial - Boolean - If not explicitly false, run sql commands serially, otherwise run commands in parallel
+- setDB - Boolean - If not explicitly false and a database argument is supplied, use that database
+ argument to set the db to use before applying sql files 
 
 ## Example Gulp file using gulp-mysql-command-file-processor
 ```js
@@ -28,19 +34,19 @@ var gmcfp = require('gulp-mysql-command-file-processor');
 
 gulp.task('schema',[], function(cb){
 	gulp.src('schema.sql')
-		.pipe(gmcfp(<user, <paswd>,undefined, undefined, 'F', undefined, false, true))
+		.pipe(gmcfp(<user>, <paswd>))
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
 gulp.task('tables',['schema'], function(cb) {
 	gulp.src(['table1.sql', 'table2.sql'])
-		.pipe(gmcfp(<user, <paswd>,undefined, undefined,'M','dbName', false, false, true))
+		.pipe(gmcfp(<user>, <paswd>,undefined, undefined,'F','dbName'))
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
 gulp.task('dev_sql', ['tables'], function(cb) {
 	gulp.src(['common.sql', 'dev.sql'])
-		.pipe(gmcfp(<user, <paswd>,undefined, undefined,'M','dbName', false, false, true))
+		.pipe(gmcfp(<user>, <paswd>,undefined, undefined,'F','dbName'))
 		.pipe(gulp.dest('dist/db'));
 	cb()
 });
@@ -50,15 +56,14 @@ gulp.task('dev_sql', ['tables'], function(cb) {
 This task is designed to run a sql script that is hard coded to create a named schema (thus
 no database argument is given). It is suggested that, if different schemas are required (dev, test and prod),
 then a task should be created for each of them.<br>
-Please note that this task is run in series (arg 8 as true) so it will complete on its own before
+Note that this task is run in series (arg 8 defaults to true) so it will complete on its own before
  any dependent task runs.
 ##### Task 2 - tables
 This task is designed to work on a previously created schema (in this case it depends on 
-the schema task). In contrast to the schema task, tables provides a database name which
- will be used (due to the true 9th argument) to set the database on the connection before 
- the sql files in the task are run.<br>
- As a result the table sql files do not set a specific database and therefore can be run 
- against any schema.
+the schema task).<br> In contrast to the schema task, the tables task provides a database name which
+ will be used (as setDB (9th arg) defaults to true) to set the database on the connection before 
+ the sql files in the task are run.
+ As a result the table sql files do not need a database set and therefore can be run against any schema.
 ##### Task 3 - dev_sql
  This task depends on tables (which itself depends on schema) so that all tables are rebuilt on 
  the schema each time it is run and, like in the tables task, uses the provided database name to 

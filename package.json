@@ -1,11 +1,10 @@
 {
   "name": "gulp-mysql-command-file-processor",
-  "version": "1.1.1",
-  "description": "BETA2 --> gulp npm module that allows SQL Data Definition Language (DDL) files to be run into a MySql server as part of a controlled release process.",
+  "version": "1.2.0",
+  "description": "BETA --> gulp npm module that allows SQL Data Definition Language (DDL) files to be run into a MySql server as part of a controlled release process.",
   "main": "index.js",
   "dependencies": {
     "async": "^2.4.1",
-    "gulp-util": "^3.0.8",
     "mysql": "^2.13.0",
     "through2": "^2.0.3"
   },

@@ -1,7 +1,6 @@
 'use strict';
 
 var through = require('through2');
-var gutil = require('gulp-util');
 var mysql = require('mysql');
 var async = require('async');
 
@@ -36,7 +35,7 @@ function dbConnect(_user, _passw, _host, _port, _database) {
  * @param {integer} _verbosity - The log level required -- 0(NONE) - 3(Full)
  * @param {bool} _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
  * @param {bool} _serial - Boolean indicating if the sql commands should be run serially or in parallel (defaults to parallel)
- * @param {string} _dbName - If set then use this namne to set the database on the connection before issuing any commands
+ * @param {string} _dbName - If set then use this name to set the database on the connection before issuing any commands
  */
 function processCommands(_fileName, _commandBuffer, _dbConnection, _verbosity, _force, _serial, _dbName, cb) {
     var commandsDone = false;
@@ -193,25 +192,24 @@ function CharParser(){
  * @param {string} _password - database user password
  * @param {string} _host - The database host server (defaults to localhost)
  * @param {string} _port - The port the host server is listening on (defaults to 3306)
- * @param {string} _verbosity - Log level DEFAULT Low -- 'NONE' - no logging; 'MED'|'M' - Medium logging; 'FULL@|'F' - Full logging
+ * @param {string} _verbosity - Log level Medium by DEFAULT -- 'NONE' - no logging; 'LOW'|'L' - Low logging; 'FULL@|'F' - Full logging
  * @param {string} _database - The database on the host server
- * @param {boolean
- * } _force - Boolean indicating if the execution must be continued on query error (defaults to TRUE)
- * @param {boolean} _serial - If true then run tasks in serial. anything else, tasks run in parallel
- * @param {boolean} _setDB - If set to true then use the database (argument 5) to set the database before running files in
+ * @param {boolean} _force - Boolean indicating if the execution must be continued on query error (defaults to FALSE)
+ * @param {boolean} _serial - If not explicitly set to false then run tasks in serial. If false then tasks run in parallel
+ * @param {boolean} _setDB - If set to true then use the database (argument 5) to set the database before running files in - default to false
  * @return {*|{hello}|{first, second}}
  */
 function processCommandFile(_username, _password, _host, _port, _verbosity, _database, _force, _serial, _setDB) {
     var buffer;
     var host = _host ? _host : 'localhost';
     var port = _port ? _port : 3306;
-    var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'MED' || _verbosity === 'M' ? 2 : _verbosity === 'NONE' ? 0 : 1;
+    var verbosity = _verbosity === 'FULL' || _verbosity === 'F' ? 3 : _verbosity === 'LOW' || _verbosity === 'L' ? 1 : _verbosity === 'NONE' ? 0 : 2;
     var force = _force !== false;
-    var serial = _serial === true;
+    var serial = _serial !== false;
     var setDB = _setDB === true;
 
     if (!(_username && _password)) {
-        throw new gutil.PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
+        throw new PluginError(PLUGIN_NAME, 'Both database and username and password must be defined');
     }
 
     return through.obj(function(file, enc, cb) {
